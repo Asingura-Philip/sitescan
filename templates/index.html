@@ -1,0 +1,705 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SiteScan Dashboard</title>
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: "Segoe UI", Arial, sans-serif;
+            background: #0e0e0e;
+            color: #e9e9e9;
+            margin: 0;
+            padding: 0;
+        }
+
+        header {
+            background: #1a1a1a;
+            padding: 30px 20px;
+            text-align: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+        }
+
+        h1 {
+            margin: 0;
+            font-size: 2.2rem;
+            letter-spacing: 1px;
+            color: #4da6ff;
+        }
+
+        .timestamp {
+            color: #999;
+            margin-top: 10px;
+            font-size: 0.95rem;
+        }
+
+        .status-indicator {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 8px;
+            background: #4da6ff;
+            animation: pulse 2s infinite;
+        }
+
+        .status-indicator.error {
+            background: #ff4444;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .container {
+            max-width: 1100px;
+            margin: 30px auto;
+            padding: 0 20px;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .box {
+            background: #1c1c1c;
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 4px 18px rgba(0,0,0,0.25);
+            text-align: left;
+            transition: 0.25s ease;
+            border: 2px solid transparent;
+        }
+
+        .box:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.35);
+        }
+
+        .box.warning {
+            border-color: #ffaa00;
+            background: #2a1f0e;
+        }
+
+        .box.error {
+            border-color: #ff4444;
+            background: #2a0e0e;
+        }
+
+        .box-title {
+            font-size: 1.15rem;
+            color: #4da6ff;
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
+
+        .box-value {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #e6e6e6;
+        }
+
+        .box-value.error {
+            color: #ff4444;
+        }
+
+        .error-message {
+            background: #2a0e0e;
+            color: #ff4444;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+            border: 1px solid #ff4444;
+            display: none;
+        }
+
+        .error-message.show {
+            display: block;
+        }
+
+        button:hover {
+            background: #3d8fcc !important;
+            transform: translateY(-2px);
+        }
+
+        button:disabled {
+            background: #666 !important;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        #crackInfo {
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        #crackDetected.detected {
+            color: #ff4444;
+            font-weight: bold;
+        }
+    </style>
+</head>
+
+<body>
+
+<header>
+    <h1>SiteScan Robot Dashboard</h1>
+    <p class="timestamp">
+        <span class="status-indicator" id="statusIndicator"></span>
+        Last Updated: <span id="time">{{ current_time }}</span>
+    </p>
+</header>
+
+<div class="container">
+    <div class="error-message" id="errorMessage">
+        <strong>Connection Error:</strong> Unable to fetch sensor data. Please check the server connection.
+    </div>
+
+    <div class="grid">
+        <div class="box" id="distanceBox">
+            <div class="box-title">Ultrasonic Distance</div>
+            <div class="box-value" id="distance">--</div>
+        </div>
+
+        <div class="box" id="pitchBox">
+            <div class="box-title">Tilt Pitch</div>
+            <div class="box-value" id="pitch">--</div>
+        </div>
+
+        <div class="box" id="rollBox">
+            <div class="box-title">Tilt Roll</div>
+            <div class="box-value" id="roll">--</div>
+        </div>
+
+        <div class="box" id="vibrationBox">
+            <div class="box-title">Piezo Vibration</div>
+            <div class="box-value" id="vibration">--</div>
+        </div>
+
+        <div class="box" id="obstacleBox">
+            <div class="box-title">IR Obstacle</div>
+            <div class="box-value" id="obstacle">--</div>
+        </div>
+
+        <div class="box" id="buzzerBox">
+            <div class="box-title">Buzzer State</div>
+            <div class="box-value" id="buzzer">--</div>
+        </div>
+
+        <div class="box" id="crackBox">
+            <div class="box-title">Crack Detection</div>
+            <div class="box-value" id="crackStatus">--</div>
+            <div id="crackInfo" style="display: none; margin-top: 10px; font-size: 0.9rem;">
+                <div>Detected: <span id="crackDetected">--</span></div>
+                <div>Confidence: <span id="crackConfidence">--</span></div>
+                <div>Cracks: <span id="crackCount">--</span></div>
+            </div>
+        </div>
+
+        <div class="box" id="tapTestBox">
+            <div class="box-title">Tap Test (Hollow Detection)</div>
+            <div class="box-value" id="tapTestStatus">--</div>
+            <div id="tapTestInfo" style="display: none; margin-top: 10px; font-size: 0.9rem;">
+                <div>Pattern: <span id="tapPattern">--</span></div>
+                <div>Duration: <span id="tapDuration">--</span>s</div>
+                <div>Oscillations: <span id="tapOscillations">--</span></div>
+                <div>Confidence: <span id="tapConfidence">--</span></div>
+            </div>
+        </div>
+    </div>
+
+    <div style="text-align: center; margin-top: 30px;">
+        <button id="scanButton" onclick="scanForCracks()" 
+                style="background: #4da6ff; color: white; border: none; padding: 15px 30px; 
+                       font-size: 1.1rem; border-radius: 8px; cursor: pointer; 
+                       transition: 0.3s; margin: 5px;">
+            Scan for Cracks
+        </button>
+        <div id="scanStatus" style="margin-top: 10px; color: #999;"></div>
+    </div>
+
+    <!-- Image Upload Section -->
+    <div style="background: #1c1c1c; padding: 25px; border-radius: 12px; margin-top: 30px;">
+        <h2 style="color: #4da6ff; margin-top: 0;">Upload Image for Crack Detection</h2>
+        
+        <div style="margin-bottom: 20px;">
+            <input type="file" id="imageUpload" accept="image/*" 
+                   style="display: none;" onchange="handleImageUpload(event)">
+            <label for="imageUpload" 
+                   style="display: inline-block; background: #4da6ff; color: white; 
+                          padding: 12px 24px; border-radius: 8px; cursor: pointer; 
+                          transition: 0.3s;">
+                Choose Image File
+            </label>
+            <span id="fileName" style="margin-left: 15px; color: #999;"></span>
+        </div>
+        
+        <button id="uploadButton" onclick="uploadImage()" 
+                style="background: #4da6ff; color: white; border: none; padding: 12px 24px; 
+                       font-size: 1rem; border-radius: 8px; cursor: pointer; 
+                       transition: 0.3s; display: none;">
+            Analyze Image
+        </button>
+        
+        <div id="uploadStatus" style="margin-top: 15px; color: #999; font-size: 0.9rem;"></div>
+        
+        <!-- Results Display -->
+        <div id="uploadResults" style="display: none; margin-top: 20px;">
+            <div style="background: #2a1f0e; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
+                <h3 style="color: #ffaa00; margin-top: 0;">Detection Results</h3>
+                <div id="detectionResults" style="color: #e9e9e9;"></div>
+            </div>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                <div>
+                    <h4 style="color: #4da6ff; margin-bottom: 10px;">Original Image</h4>
+                    <img id="originalImage" src="" alt="Original" 
+                         style="max-width: 100%; border-radius: 8px; border: 2px solid #333;">
+                </div>
+                <div>
+                    <h4 style="color: #4da6ff; margin-bottom: 10px;">Annotated Image</h4>
+                    <img id="annotatedImage" src="" alt="Annotated" 
+                         style="max-width: 100%; border-radius: 8px; border: 2px solid #333;">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Servo Control Panel -->
+    <div id="servoPanel" style="background: #1c1c1c; padding: 25px; border-radius: 12px; margin-top: 30px; display: none;">
+        <h2 style="color: #4da6ff; margin-top: 0;">Servo Control (Pan/Tilt)</h2>
+        
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px;">
+            <div>
+                <label style="color: #4da6ff; display: block; margin-bottom: 10px;">Pan (Horizontal): <span id="panValue">90</span>°</label>
+                <input type="range" id="panSlider" min="0" max="180" value="90" 
+                       style="width: 100%;" oninput="updateServoPosition()">
+            </div>
+            <div>
+                <label style="color: #4da6ff; display: block; margin-bottom: 10px;">Tilt (Vertical): <span id="tiltValue">90</span>°</label>
+                <input type="range" id="tiltSlider" min="0" max="180" value="90" 
+                       style="width: 100%;" oninput="updateServoPosition()">
+            </div>
+        </div>
+        
+        <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+            <button onclick="centerServos()" 
+                    style="background: #4da6ff; color: white; border: none; padding: 10px 20px; 
+                           border-radius: 8px; cursor: pointer;">Center</button>
+            <button onclick="servoScan('grid')" 
+                    style="background: #4da6ff; color: white; border: none; padding: 10px 20px; 
+                           border-radius: 8px; cursor: pointer;">Grid Scan</button>
+            <button onclick="servoScan('horizontal')" 
+                    style="background: #4da6ff; color: white; border: none; padding: 10px 20px; 
+                           border-radius: 8px; cursor: pointer;">Horizontal</button>
+            <button onclick="servoScan('vertical')" 
+                    style="background: #4da6ff; color: white; border: none; padding: 10px 20px; 
+                           border-radius: 8px; cursor: pointer;">Vertical</button>
+        </div>
+        
+        <div id="servoStatus" style="margin-top: 15px; color: #999; font-size: 0.9rem;"></div>
+    </div>
+</div>
+
+<script>
+let errorCount = 0;
+const MAX_ERRORS = 3;
+
+function updateSensors() {
+    fetch("/sensor-data")
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            errorCount = 0;
+            document.getElementById("errorMessage").classList.remove("show");
+            document.getElementById("statusIndicator").classList.remove("error");
+
+            // Update distance
+            const distanceEl = document.getElementById("distance");
+            const distanceBox = document.getElementById("distanceBox");
+            if (data.distance < 0) {
+                distanceEl.innerText = "ERROR";
+                distanceEl.classList.add("error");
+                distanceBox.classList.add("error");
+            } else {
+                distanceEl.innerText = data.distance.toFixed(2) + " cm";
+                distanceEl.classList.remove("error");
+                distanceBox.classList.remove("error", "warning");
+                if (data.distance < 2 || data.distance > 10) {
+                    distanceBox.classList.add("warning");
+                }
+            }
+
+            // Update pitch
+            const pitchEl = document.getElementById("pitch");
+            const pitchBox = document.getElementById("pitchBox");
+            pitchEl.innerText = data.pitch.toFixed(2) + "°";
+            pitchBox.classList.remove("warning");
+            if (Math.abs(data.pitch) > 5) {
+                pitchBox.classList.add("warning");
+            }
+
+            // Update roll
+            const rollEl = document.getElementById("roll");
+            const rollBox = document.getElementById("rollBox");
+            rollEl.innerText = data.roll.toFixed(2) + "°";
+            rollBox.classList.remove("warning");
+            if (Math.abs(data.roll) > 5) {
+                rollBox.classList.add("warning");
+            }
+
+            // Update vibration
+            const vibrationEl = document.getElementById("vibration");
+            const vibrationBox = document.getElementById("vibrationBox");
+            vibrationEl.innerText = data.vibration;
+            vibrationBox.classList.remove("warning");
+            if (data.vibration == 1) {
+                vibrationBox.classList.add("warning");
+            }
+
+            // Update obstacle
+            const obstacleEl = document.getElementById("obstacle");
+            const obstacleBox = document.getElementById("obstacleBox");
+            obstacleEl.innerText = data.obstacle ? "YES" : "NO";
+            obstacleBox.classList.remove("warning");
+            if (data.obstacle) {
+                obstacleBox.classList.add("warning");
+            }
+
+            // Update buzzer
+            const buzzerEl = document.getElementById("buzzer");
+            const buzzerBox = document.getElementById("buzzerBox");
+            buzzerEl.innerText = data.buzzer_state;
+            buzzerBox.classList.remove("warning");
+            if (data.buzzer_state === "ON") {
+                buzzerBox.classList.add("warning");
+            } else if (data.buzzer_state === "ERROR") {
+                buzzerEl.classList.add("error");
+                buzzerBox.classList.add("error");
+            }
+
+            // Update crack status
+            if (data.crack_status) {
+                const crackBox = document.getElementById("crackBox");
+                const crackStatusEl = document.getElementById("crackStatus");
+                const crackInfoEl = document.getElementById("crackInfo");
+                
+                if (data.crack_status.detected) {
+                    crackStatusEl.innerText = "⚠️ DETECTED";
+                    crackStatusEl.style.color = "#ff4444";
+                    crackBox.classList.add("warning");
+                    crackInfoEl.style.display = "flex";
+                    document.getElementById("crackDetected").innerText = "YES";
+                    document.getElementById("crackDetected").classList.add("detected");
+                    document.getElementById("crackConfidence").innerText = 
+                        (data.crack_status.confidence * 100).toFixed(1) + "%";
+                    document.getElementById("crackCount").innerText = data.crack_status.crack_count;
+                } else {
+                    crackStatusEl.innerText = "✓ CLEAR";
+                    crackStatusEl.style.color = "#4da6ff";
+                    crackBox.classList.remove("warning");
+                }
+            } else if (data.camera_available === false) {
+                document.getElementById("crackStatus").innerText = "N/A";
+                document.getElementById("crackStatus").style.color = "#999";
+            } else {
+                document.getElementById("crackStatus").innerText = "--";
+            }
+
+            // Update tap test results
+            if (data.tap_test) {
+                const tapBox = document.getElementById("tapTestBox");
+                const tapStatusEl = document.getElementById("tapTestStatus");
+                const tapInfoEl = document.getElementById("tapTestInfo");
+                
+                if (data.tap_test.tap_detected) {
+                    tapInfoEl.style.display = "flex";
+                    
+                    if (data.tap_test.is_hollow === true) {
+                        tapStatusEl.innerText = "⚠️ HOLLOW";
+                        tapStatusEl.style.color = "#ff4444";
+                        tapBox.classList.add("warning");
+                    } else if (data.tap_test.is_hollow === false) {
+                        tapStatusEl.innerText = "✓ SOLID";
+                        tapStatusEl.style.color = "#4da6ff";
+                        tapBox.classList.remove("warning");
+                    } else {
+                        tapStatusEl.innerText = "? UNKNOWN";
+                        tapStatusEl.style.color = "#ffaa00";
+                        tapBox.classList.remove("warning");
+                    }
+                    
+                    document.getElementById("tapPattern").innerText = data.tap_test.pattern.toUpperCase();
+                    document.getElementById("tapDuration").innerText = data.tap_test.duration.toFixed(3);
+                    document.getElementById("tapOscillations").innerText = data.tap_test.oscillation_count;
+                    document.getElementById("tapConfidence").innerText = (data.tap_test.confidence * 100).toFixed(0) + "%";
+                } else {
+                    tapStatusEl.innerText = "Waiting for tap...";
+                    tapStatusEl.style.color = "#999";
+                    tapInfoEl.style.display = "none";
+                    tapBox.classList.remove("warning");
+                }
+            }
+
+            // Update time
+            document.getElementById("time").innerText = data.time;
+        })
+        .catch(error => {
+            errorCount++;
+            console.error("Error fetching sensor data:", error);
+            
+            if (errorCount >= MAX_ERRORS) {
+                document.getElementById("errorMessage").classList.add("show");
+                document.getElementById("statusIndicator").classList.add("error");
+            }
+        });
+}
+
+function scanForCracks() {
+    const button = document.getElementById("scanButton");
+    const statusEl = document.getElementById("scanStatus");
+    const infoEl = document.getElementById("crackInfo");
+    
+    button.disabled = true;
+    statusEl.innerText = "Scanning for cracks...";
+    statusEl.style.color = "#4da6ff";
+    
+    fetch("/scan-cracks", { method: "POST" })
+        .then(response => response.json())
+        .then(data => {
+            button.disabled = false;
+            
+            if (data.error) {
+                statusEl.innerText = "Error: " + data.error;
+                statusEl.style.color = "#ff4444";
+                statusEl.style.fontSize = "0.9rem";
+                statusEl.style.maxWidth = "600px";
+                statusEl.style.margin = "10px auto";
+                statusEl.style.textAlign = "center";
+                
+                // Show installation instructions if it's an OpenCV error
+                if (data.error.includes("OpenCV") || data.error.includes("opencv")) {
+                    const installMsg = document.createElement("div");
+                    installMsg.style.marginTop = "10px";
+                    installMsg.style.fontSize = "0.85rem";
+                    installMsg.style.color = "#ffaa00";
+                    installMsg.innerHTML = "💡 Install with: <code style='background:#333;padding:2px 6px;border-radius:4px;'>pip3 install opencv-python numpy</code>";
+                    statusEl.parentNode.appendChild(installMsg);
+                }
+                return;
+            }
+            
+            infoEl.style.display = "flex";
+            
+            const detectedEl = document.getElementById("crackDetected");
+            const confidenceEl = document.getElementById("crackConfidence");
+            const countEl = document.getElementById("crackCount");
+            
+            if (data.detected) {
+                detectedEl.innerText = "YES";
+                detectedEl.classList.add("detected");
+                statusEl.innerText = "⚠️ CRACKS DETECTED!";
+                statusEl.style.color = "#ff4444";
+            } else {
+                detectedEl.innerText = "NO";
+                detectedEl.classList.remove("detected");
+                statusEl.innerText = "✓ No cracks detected";
+                statusEl.style.color = "#4da6ff";
+            }
+            
+            confidenceEl.innerText = (data.confidence * 100).toFixed(1) + "%";
+            countEl.innerText = data.crack_count;
+            
+            // Refresh sensor data to update crack status
+            setTimeout(updateSensors, 500);
+        })
+        .catch(error => {
+            button.disabled = false;
+            statusEl.innerText = "Error: " + error.message;
+            statusEl.style.color = "#ff4444";
+        });
+}
+
+// Servo control functions
+function updateServoPosition() {
+    const pan = document.getElementById("panSlider").value;
+    const tilt = document.getElementById("tiltSlider").value;
+    document.getElementById("panValue").innerText = pan;
+    document.getElementById("tiltValue").innerText = tilt;
+    
+    fetch("/servo/position", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({pan: parseFloat(pan), tilt: parseFloat(tilt)})
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            document.getElementById("servoStatus").innerText = data.message;
+            document.getElementById("servoStatus").style.color = "#4da6ff";
+        } else {
+            document.getElementById("servoStatus").innerText = "Error: " + (data.error || "Unknown");
+            document.getElementById("servoStatus").style.color = "#ff4444";
+        }
+    })
+    .catch(error => {
+        document.getElementById("servoStatus").innerText = "Error: " + error.message;
+        document.getElementById("servoStatus").style.color = "#ff4444";
+    });
+}
+
+function centerServos() {
+    fetch("/servo/center", {method: "POST"})
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                document.getElementById("panSlider").value = 90;
+                document.getElementById("tiltSlider").value = 90;
+                document.getElementById("panValue").innerText = "90";
+                document.getElementById("tiltValue").innerText = "90";
+                document.getElementById("servoStatus").innerText = "Servos centered";
+                document.getElementById("servoStatus").style.color = "#4da6ff";
+            }
+        });
+}
+
+function servoScan(pattern) {
+    document.getElementById("servoStatus").innerText = "Scanning...";
+    document.getElementById("servoStatus").style.color = "#4da6ff";
+    
+    fetch("/servo/scan", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({pattern: pattern, steps: 5})
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            document.getElementById("servoStatus").innerText = data.message;
+            document.getElementById("servoStatus").style.color = "#4da6ff";
+        } else {
+            document.getElementById("servoStatus").innerText = "Error: " + (data.error || "Unknown");
+            document.getElementById("servoStatus").style.color = "#ff4444";
+        }
+        });
+}
+
+// Image upload functions
+let selectedFile = null;
+
+function handleImageUpload(event) {
+    const file = event.target.files[0];
+    if (file) {
+        selectedFile = file;
+        document.getElementById("fileName").innerText = file.name;
+        document.getElementById("uploadButton").style.display = "inline-block";
+        document.getElementById("uploadStatus").innerText = "";
+        document.getElementById("uploadResults").style.display = "none";
+    }
+}
+
+function uploadImage() {
+    if (!selectedFile) {
+        document.getElementById("uploadStatus").innerText = "Please select an image first";
+        document.getElementById("uploadStatus").style.color = "#ff4444";
+        return;
+    }
+    
+    const formData = new FormData();
+    formData.append('file', selectedFile);
+    
+    const uploadButton = document.getElementById("uploadButton");
+    const uploadStatus = document.getElementById("uploadStatus");
+    const uploadResults = document.getElementById("uploadResults");
+    
+    uploadButton.disabled = true;
+    uploadStatus.innerText = "Uploading and analyzing image...";
+    uploadStatus.style.color = "#4da6ff";
+    
+    fetch("/upload-image", {
+        method: "POST",
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        uploadButton.disabled = false;
+        
+        if (data.success) {
+            if (data.detected) {
+                uploadStatus.style.color = "#ff4444";
+                uploadStatus.innerText = "⚠️ " + data.message;
+            } else {
+                uploadStatus.style.color = "#4da6ff";
+                uploadStatus.innerText = "✓ " + data.message;
+            }
+            
+            // Display results
+            const resultsDiv = document.getElementById("detectionResults");
+            resultsDiv.innerHTML = `
+                <div><strong>Status:</strong> ${data.detected ? '<span style="color: #ff4444;">CRACKS DETECTED</span>' : '<span style="color: #4da6ff;">No cracks detected</span>'}</div>
+                <div><strong>Confidence:</strong> ${(data.confidence * 100).toFixed(1)}%</div>
+                <div><strong>Cracks Found:</strong> ${data.crack_count}</div>
+                <div><strong>Edge Density:</strong> ${(data.edge_density * 100).toFixed(2)}%</div>
+            `;
+            
+            // Display images
+            document.getElementById("originalImage").src = `/uploads/${data.original_image}`;
+            if (data.annotated_image) {
+                document.getElementById("annotatedImage").src = `/uploads/${data.annotated_image}`;
+            } else {
+                document.getElementById("annotatedImage").src = `/uploads/${data.original_image}`;
+                document.getElementById("annotatedImage").style.opacity = "0.5";
+            }
+            
+            uploadResults.style.display = "block";
+        } else {
+            uploadStatus.innerText = "Error: " + (data.error || "Unknown error");
+            uploadStatus.style.color = "#ff4444";
+        }
+    })
+    .catch(error => {
+        uploadButton.disabled = false;
+        uploadStatus.innerText = "Error: " + error.message;
+        uploadStatus.style.color = "#ff4444";
+    });
+}
+
+// Update every 1 second
+setInterval(updateSensors, 1000);
+
+// Update immediately on page load
+updateSensors();
+
+// Check for servo availability and show panel
+setTimeout(() => {
+    fetch("/sensor-data")
+        .then(response => response.json())
+        .then(data => {
+            if (data.servo_available) {
+                document.getElementById("servoPanel").style.display = "block";
+                if (data.servo_position) {
+                    document.getElementById("panSlider").value = data.servo_position.pan;
+                    document.getElementById("tiltSlider").value = data.servo_position.tilt;
+                    document.getElementById("panValue").innerText = data.servo_position.pan;
+                    document.getElementById("tiltValue").innerText = data.servo_position.tilt;
+                }
+            }
+        });
+}, 1000);
+</script>
+
+</body>
+</html>
